@@ -23,6 +23,10 @@ st.set_page_config(
 # Functions
 #--------------------------------------------------------#
 
+eth_transfer_pct = 0.31
+erc20_transfer_pct = 0.19
+uniswap_trade_pct = 0.49
+hop_bridge_pct = 0.01
 
 @st.cache_resource(ttl=3600, show_spinner="Fetching data from API...")
 def getDuneData():
@@ -76,11 +80,40 @@ def regression_model(calldata_bytes_per_user_tx, calldata_gas_per_user_tx,
 st.title('OP Calculator 🔴✨')
 st.subheader('Estimate the profitability of a new OP stack rollup')
 
+num_txns = st.number_input("Enter your estimated number of daily transactions", value=10000, placeholder="Type a number...")
+
+run = st.button("PREDICT", type="primary")
+
+if run:
+  df = getDuneData()
+
+  st.subheader("Step 1: Pull revenue and cost for a median transaction (past 24h)")
+  st.dataframe(df)
+  
+  st.subheader("Step 2: Assume % distribution of txn types")
+  st.write("ETH Transfers = 31% of txns")
+  st.write("ERC20 Transfers = 19% of txns")
+  st.write("Uniswap Trades = 49% of txns")
+  st.write("Hop Bridge Out = 1% of txns")
+
+  st.subheader("Step 3: Predict daily revenue for the rollup")
+  st.caption("Predicted Daily Revenue = number of txn * SUM(txn revenue * pct distrib) ")
+  daily_rev = num_txns * (
+    eth_transfer_pct * df.loc[df['tx_type'] == 'eth_transfer', 'med_l2_rev'].values[0] 
+   + erc20_transfer_pct * df.loc[df['tx_type'] == 'erc20_transfer', 'med_l2_rev'].values[0] 
+   + uniswap_trade_pct * df.loc[df['tx_type'] == 'uniswap_trade', 'med_l2_rev'].values[0] 
+   + hop_bridge_pct * df.loc[df['tx_type'] == 'hop_bridge', 'med_l2_rev'].values[0] 
+  )
+  st.write("Predicted Daily Revenue = " + daily_rev + "ETH")
+
+  st.subheader("Step 3: Predict daily cost for the rollup")
+  
+
 # with st.form("my_form"):
 #   text = st.text_area("Enter a question about Safe protocol:")
 #   submitted = st.form_submit_button("Submit")
 #   if submitted:
 #     print('yaya')
 
-kdf = getDuneData()
-kdf
+# kdf = getDuneData()
+# kdf
