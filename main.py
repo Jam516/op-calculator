@@ -28,11 +28,23 @@ erc20_transfer_pct = 0.19
 uniswap_trade_pct = 0.49
 hop_bridge_pct = 0.01
 
-@st.cache_resource(ttl=3600, show_spinner="Fetching data from API...")
+
+@st.cache_resource(ttl=3600, show_spinner="Fetching onchain data...")
 def getDuneData():
   query = QueryBase(
       name="op_txn_stats",
       query_id=3036014,
+  )
+
+  dune = DuneClient(os.environ["DUNE_API_KEY"])
+  results = dune.refresh_into_dataframe(query)
+  return results
+
+@st.cache_resource(ttl=3600, show_spinner="Fetching onchain data...")
+def getMedGas():
+    query = QueryBase(
+      name="med_gas_price_l1",
+      query_id=3051281,
   )
 
   dune = DuneClient(os.environ["DUNE_API_KEY"])
@@ -80,40 +92,42 @@ def regression_model(calldata_bytes_per_user_tx, calldata_gas_per_user_tx,
 st.title('OP Calculator 🔴✨')
 st.subheader('Estimate the profitability of a new OP stack rollup')
 
-num_txns = st.number_input("Enter your estimated number of daily transactions", value=10000, placeholder="Type a number...")
+num_txns = st.number_input("Enter your estimated number of daily transactions",
+                           value=10000,
+                           placeholder="Type a number...")
 
 run = st.button("PREDICT", type="primary")
 
 if run:
   df = getDuneData()
 
-  st.subheader("Step 1: Pull revenue and cost for a median transaction (past 24h)")
+  st.subheader(
+      "Step 1: Pull revenue and cost for a median transaction (past 24h)")
   st.dataframe(df)
-  
+
   st.subheader("Step 2: Assume % distribution of txn types")
+  df['pct_distribution'] = 0
+  df.loc[df['tx_type'] == 'eth_transfer','pct_distribution'] = eth_transfer_pct
+  df.loc[df['tx_type'] == 'erc20_transfer','pct_distribution'] = erc20_transfer_pct
+  df.loc[df['tx_type'] == 'uniswap_trade','pct_distribution'] = uniswap_trade_pct
+  df.loc[df['tx_type'] == 'hop_bridge','pct_distribution'] = hop_bridge_pct
   st.write("ETH Transfers = 31% of txns")
   st.write("ERC20 Transfers = 19% of txns")
   st.write("Uniswap Trades = 49% of txns")
   st.write("Hop Bridge Out = 1% of txns")
 
   st.subheader("Step 3: Predict daily revenue for the rollup")
-  st.caption("Predicted Daily Revenue = number of txn * SUM(txn revenue * pct distrib) ")
-  daily_rev = num_txns * (
-    eth_transfer_pct * df.loc[df['tx_type'] == 'eth_transfer', 'med_l2_rev'].values[0] 
-   + erc20_transfer_pct * df.loc[df['tx_type'] == 'erc20_transfer', 'med_l2_rev'].values[0] 
-   + uniswap_trade_pct * df.loc[df['tx_type'] == 'uniswap_trade', 'med_l2_rev'].values[0] 
-   + hop_bridge_pct * df.loc[df['tx_type'] == 'hop_bridge', 'med_l2_rev'].values[0] 
-  )
-  st.write("Predicted Daily Revenue = " + daily_rev + "ETH")
+  # st.caption("Predicted Daily Revenue = No of txns * SUM(txn revenue * pct distrib) ")
+  daily_rev = num_txns * (df.apply(lambda row: row['med_l2_rev'] * row['pct_distribution'], axis=1).sum())
+  st.write("Predicted Daily Revenue = " + str(daily_rev) + "ETH")
 
-  st.subheader("Step 3: Predict daily cost for the rollup")
-  
+  st.subheader("Step 4: Predict daily cost for the rollup")
+  df['daily_l1_gas_used_inbox'] = df.apply(lambda row: regression_model(row['med_calldata_bytes'], row['med_l1_gas_used'], (num_txns*row['pct_distribution'])), axis=1)
 
-# with st.form("my_form"):
-#   text = st.text_area("Enter a question about Safe protocol:")
-#   submitted = st.form_submit_button("Submit")
-#   if submitted:
-#     print('yaya')
+  med_gas_price = getMedGas()['median_gas_price_gwei'][0]
+  st.write("Med Gas = " + str(med_gas_price) + "ETH")
+  daily_cost = (med_gas_price * df['daily_l1_gas_used_inbox'].sum())/1e9
+  st.write("Predicted Daily Cost = " + str(daily_cost) + "ETH")
 
-# kdf = getDuneData()
-# kdf
+  st.subheader("Output")
+  st.subheader("Predicted Daily Profit = " + str((daily_rev - daily_cost))  + "ETH")
