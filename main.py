@@ -134,7 +134,7 @@ if run:
 
   med_gas_price = getMedGas()['median_gas_price_gwei'][0]
   daily_cost = (med_gas_price * df['daily_l1_gas_used_inbox'].sum()) / 1e9
-  st.write("Predicted Daily Cost = " + str(round(daily_cost,3) + "ETH")
+  st.write("Predicted Daily Cost = " + str(round(daily_cost,3)) + "ETH")
 
   st.subheader('Output', divider='rainbow')
   st.caption("Predicted Daily Profit = Predicted Daily Revenue - Predicted Daily Cost")
