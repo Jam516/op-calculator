@@ -120,10 +120,10 @@ if run:
   st.write("Hop Bridge Out = 1% of txns")
 
   st.subheader("Step 3: Predict daily revenue for the rollup")
-  st.caption("Sum of txn revenue * number of transactions for each transaction type")
+  st.caption("Sum of (txn revenue * number of transactions) for each transaction type")
   daily_rev = num_txns * (df.apply(
       lambda row: row['med_l2_rev'] * row['pct_distribution'], axis=1).sum())
-  st.write("Predicted Daily Revenue = " + str(daily_rev) + "ETH")
+  st.write("Predicted Daily Revenue = " + str(round(daily_rev,3)) + "ETH")
 
   st.subheader("Step 4: Predict daily cost for the rollup")
   st.caption("Regression Model is used to calculate the Gas used on L1. This is multiplied by the median gas price of the past day.")
@@ -133,11 +133,10 @@ if run:
                                            axis=1)
 
   med_gas_price = getMedGas()['median_gas_price_gwei'][0]
-  st.write("Med Gas = " + str(med_gas_price) + "ETH")
   daily_cost = (med_gas_price * df['daily_l1_gas_used_inbox'].sum()) / 1e9
-  st.write("Predicted Daily Cost = " + str(daily_cost) + "ETH")
+  st.write("Predicted Daily Cost = " + str(round(daily_cost,3) + "ETH")
 
-  st.subheader("Output")
+  st.subheader(":blue[Output]")
   st.caption("Predicted Daily Profit = Predicted Daily Revenue - Predicted Daily Cost")
-  st.subheader("Predicted Daily Profit = " + str((daily_rev - daily_cost)) +
+  st.subheader("Predicted Daily Profit = " + str(round((daily_rev - daily_cost),2)) +
                "ETH")
